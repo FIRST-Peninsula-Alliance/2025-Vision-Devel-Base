@@ -1,0 +1,535 @@
+package frc.lib.swerve;
+
+import frc.robot.Constants.*;
+
+import edu.wpi.first.math.controller.SimpleMotorFeedforward;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.kinematics.SwerveModulePosition;
+import edu.wpi.first.math.kinematics.SwerveModuleState;
+import edu.wpi.first.networktables.GenericEntry;
+import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.shuffleboard.ShuffleboardLayout;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+
+import com.ctre.phoenix6.hardware.TalonFX;
+import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.controls.DutyCycleOut;
+import com.ctre.phoenix6.controls.VelocityVoltage;
+
+import com.ctre.phoenix6.signals.FeedbackSensorSourceValue;
+import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
+import com.ctre.phoenix6.configs.FeedbackConfigs;
+import com.ctre.phoenix6.configs.MotorOutputConfigs;
+import com.ctre.phoenix6.configs.OpenLoopRampsConfigs;
+import com.ctre.phoenix6.configs.ClosedLoopRampsConfigs;
+import com.ctre.phoenix6.configs.Slot0Configs;
+
+import com.ctre.phoenix6.hardware.CANcoder;
+import com.ctre.phoenix6.StatusCode;
+import com.ctre.phoenix6.configs.CANcoderConfiguration;
+import com.ctre.phoenix6.configs.MagnetSensorConfigs;
+
+import com.revrobotics.spark.SparkMax;
+import com.revrobotics.spark.config.SparkMaxConfig;
+import com.revrobotics.REVLibError;
+import com.revrobotics.RelativeEncoder;
+import com.revrobotics.spark.config.EncoderConfig;
+import com.revrobotics.spark.config.AbsoluteEncoderConfig;
+import com.revrobotics.spark.SparkClosedLoopController;
+import com.revrobotics.spark.SparkBase;
+import com.revrobotics.spark.config.SparkBaseConfig;
+import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
+import com.revrobotics.spark.SparkBase.PersistMode;
+import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.SparkLowLevel;
+import com.revrobotics.spark.config.ClosedLoopConfigAccessor;
+import com.revrobotics.spark.SparkBase.ResetMode;
+import com.revrobotics.spark.config.ClosedLoopConfig;
+
+
+public class SwerveModule {
+    public  int m_modNum;
+    private SwerveModuleConstants m_moduleConstants;
+    private Rotation2d m_absAngleOffset2d;
+    private double desiredAngle;      // Just a local variable, persistent to relieve Java GC pressure
+    private double m_lastAngle;       // This is not used for control, rather it 
+                                      // stores the last setpoint requested for a
+                                      // given module, for data publishing purposes.
+    private final SparkMax m_steerMotor;
+    private EncoderConfig m_steerEncoderConfig;
+    private final RelativeEncoder m_integratedSteerEncoder;
+    //private final AbsoluteEncoderConfig m_absoluteSteerEncoderConfig;
+    private final SparkClosedLoopController m_steerController;
+    private final CANcoder m_absWheelAngleCANcoder;
+    private final TalonFX m_driveMotor;
+        //private final ClosedLoopConfig m_ClosedLoopConfig;
+    // Declare Phoenix6 control request objects for the Drive Motor:
+    // Open loop control output to the drive motor is one shot DutyCycle, and must be 
+    // repeated every loop to avoid safety timeout
+    final DutyCycleOut m_driveOpenLoop = new DutyCycleOut(0.0).withUpdateFreqHz(0);
+    // In phoenix5 the closed loop drive control was voltage compensated with arbitrary feed forward.
+    // In Phoenix6 the equivalent is VelocityVoltage control, again with arbitrary feed forward calculated
+    // per loop. The default update rate is 100 Hz, leave it as is and bump it every loop with updated
+    // feed forward calculations.
+    final VelocityVoltage m_driveClosedLoop = new VelocityVoltage(0.0);
+
+    private SimpleMotorFeedforward feedforward = new SimpleMotorFeedforward(SDC.DRIVE_KS,
+                                                                            SDC.DRIVE_KV,
+                                                                            SDC.DRIVE_KA);
+    private double m_velocityFeedForward;
+
+    // Entries for publishing module data.
+    // Technically, the following member Entry variables do not need to be saved,
+    // as the data written via them is static and should never change after
+    // initial setup
+    // private GenericEntry IdsEntry;       // Drive ID, Rotate ID, CANcoder ID, in that order
+                                            // Single digits only, to fit module list width
+    // private GenericEntry absOffsetEntry;
+
+    // However, the following Entry keys are for dynamic variables, and
+    // will change depending on activity.
+    private GenericEntry steerSetpointDegEntry;
+    private GenericEntry steerEncoderDegEntry;
+    private GenericEntry absCANcoderDegEntry;
+    private GenericEntry steerPIDOutputEntry;
+    private GenericEntry wheelCurrPosEntry;
+    private GenericEntry wheelCurrSpeedEntry;
+    private GenericEntry wheelAmpsEntry;
+    private GenericEntry wheelTempEntry;
+    private GenericEntry steerAmpsEntry;
+    private GenericEntry steerTempEntry;
+
+    private int kCoast;
+    public ClosedLoopConfig m_closedLoopConfig;
+    public ClosedLoopConfig pidf;
+    /*
+    public double getP;
+    private double getI;
+    private double getD;
+    private double getFF;
+*/
+    public static final double AbsoluteSensorDiscontinuityPoint = 1.0;
+
+    // private SparkBaseConfig m_sparkBaseConfig = new SparkBaseConfig(CANType.kSpark);
+    private SparkMaxConfig m_sparkMaxConfig;
+
+    public SwerveModule(int moduleNumber, SwerveModuleConstants moduleConstants) {
+        m_modNum = moduleNumber;
+        m_moduleConstants = moduleConstants;
+        m_absAngleOffset2d = moduleConstants.ABS_ANG_OFFSET2D;
+        
+        /* Angle Encoder Config */
+        m_absWheelAngleCANcoder = new CANcoder(m_moduleConstants.ENCODER_ID);
+        // Use the following for use with CANivore
+        // m_absWheelAngleCANcoder = new CANcoder(ID, canbus);
+        // where canbus is a string identifying which canbus to use
+        configAbsWheelAngleCANcoder();
+
+        /* Angle Motor Config */
+        m_steerMotor = new SparkMax(m_moduleConstants.STEER_MOTOR_ID, 
+                                       MotorType.kBrushless);
+        m_steerController = m_steerMotor.getClosedLoopController();
+        m_integratedSteerEncoder = m_steerMotor.getEncoder();
+        m_sparkMaxConfig = new SparkMaxConfig();
+        configSteerMotor();
+
+        /* Drive Motor Config */
+        m_driveMotor = new TalonFX(m_moduleConstants.DRIVE_MOTOR_ID);
+        configDriveMotor();
+
+        m_lastAngle = getState().angle.getDegrees();
+
+        setupModulePublishing();
+    }
+
+    public void setDesiredState(SwerveModuleState desiredState, boolean isOpenLoop) {
+        // Below is a custom optimize function, since default WPILib optimize assumes 
+        // continuous controller which CTRE and Rev onboard were not.
+        // The job of optimize is to minimise the amount of rotation required to
+        // get to the new direction, given the actual current direction, of the
+        // swerve module.
+        // TODO: Check if that still applies - now that NEO encoder is configured to
+        // be continuous and tracks in degrees (using a configured conversion factor)
+        // perhaps the WPILib optimize would be usable as is?
+        desiredState = SwerveOptimize.optimize(desiredState, getState().angle);
+        desiredAngle = desiredState.angle.getDegrees();
+        // But, (for normal operation, not testing of a single module) only 
+        // rotate the module if wheel speed is more than 1% of robot's max speed. 
+        // This prevents Jittering. Otherwise, no turn needed, as closed loop
+        // steering will maintain prior direction.
+        if (Math.abs(desiredState.speedMetersPerSecond) > (SDC.MAX_ROBOT_SPEED_M_PER_SEC * 0.01)) {
+            setAngle(desiredAngle);
+        }
+        setSpeed(desiredState, isOpenLoop);
+    }
+
+    private void setSpeed(SwerveModuleState desiredState, boolean isOpenLoop) {
+        if(isOpenLoop) {
+            // Drive using joystick. Convert MPS to a DutyCycle (was percent) output
+            m_driveOpenLoop.Output = desiredState.speedMetersPerSecond / SDC.MAX_ROBOT_SPEED_M_PER_SEC;
+            m_driveMotor.setControl(m_driveOpenLoop);
+        }
+        else {
+            // Drive using VelocityVoltage PID, using Falcon encoder units and default Slot0
+            m_driveClosedLoop.Velocity = desiredState.speedMetersPerSecond * SDC.MPS_TO_TALONFX_RPS_FACTOR;
+            m_velocityFeedForward = feedforward.calculate(desiredState.speedMetersPerSecond);
+            m_driveMotor.setControl(m_driveClosedLoop.withFeedForward(m_velocityFeedForward));
+        }
+    }
+
+    public void setAngle(double desiredAngle) {
+        // We can now setReference in native units (deg) since Neo encoder is
+        // configured to operate in degrees. No need to convert to NEO rev units
+        // When this is called by module angle test routines, there is no "optimized" turn limit
+        m_steerController.setReference(desiredAngle,SparkBase.ControlType.kPosition);
+        m_lastAngle = desiredAngle;
+    }
+
+    public void testDriveMotorRotation() {
+        // this routime spins the drive motor slowly under percent output
+        // to check that it is configured correctly (CCW Positive)
+        m_driveMotor.setControl(m_driveOpenLoop
+                                .withUpdateFreqHz(50)
+                                .withOutput(0.25));
+    }
+
+    public void testSteerMotorRotation() {
+        // this routime spins the steering motor slowly under percent output
+        // to check that it is configured correctly (CCW Positive)
+        m_steerController.setReference(.2, SparkBase.ControlType.kDutyCycle);
+    }
+
+    // getAngle2d returns the current swerve module direction as a Rotation2d value.
+    private Rotation2d getAngle2d() {
+        return Rotation2d.fromDegrees(m_integratedSteerEncoder.getPosition());
+    }
+
+    // setNeoPosDeg is called from resetToAbsolute. The NEO encoder is now configured to 
+    // use native units (deg), so the angle argument must be in units of degrees (range 0-360)
+    // reflecting the actual module direction (relative to the robot) upon initialization.
+    // With the module aimed straight ahead, bevel gear to the left, the angle should be 0.0
+    public void setNeoPosDeg(double angle) {
+        m_integratedSteerEncoder.setPosition(angle);
+    }
+
+    // getNeoPosDeg returns the current value of the Neo's integrated encoder (initialized 
+    // at startup to the module's correct absolute direction) in degrees, in the range 0 to 360.
+    public double getNeoPosDeg() {
+        return normalizeAngle0To360(m_integratedSteerEncoder.getPosition());
+    }
+
+    public double normalizeAngle0To360(double angle) {
+        // There are many ways to normalize an angle to the range 0 to 360 degrees with 
+        // robustness for all possible negative and positive values, and we need to do
+        // that for the integrated encoder in the NEO because while the PID is configured to
+        // treat it as a "continuous" sensor (0 to 360) the sensor itself just continues to
+        // linearly increase or decrease the position value per the rotation direction.
+        // For keeping track of module heading it helps to bring it back to baseband, i.e.
+        // to the range 0 - 360.
+        // Note that for module steering PID purposes in this swerve drive code, native
+        // degrees are used.
+        // However, for most WPILib swerve support APIs, angles are expected to be radians 
+        // in the range -PI to PI, using Rotation2d. This is not a problem as the Rotation2d 
+        // object provides utility methods to convert degrees to radians and vice versa.
+        // Math.IEEEremainder(angle, 360.0) will also normalize an angle;
+        return ((angle % 360) + 360) % 360;
+    }
+
+    public double getRawNeoPos() {
+        return m_integratedSteerEncoder.getPosition();
+    }
+
+    public double getCANcoderDeg() {
+        // .getAbsolutePosition returns a StatusSignal, so we need to get it's value 
+        // and convert range of [0, 1] into degrees
+        return m_absWheelAngleCANcoder.getAbsolutePosition().getValueAsDouble() * 360.0;
+    }
+
+    public Rotation2d getCANcoder2d(){
+        return Rotation2d.fromDegrees(getCANcoderDeg());
+    }
+
+    private void waitForCANcoder() {
+        // Wait for up a good CANcoder signal. This prevents a race condition during program startup
+        // where trying to synchronize the Integrated motor encoder to the CANcoder before we have
+        // received any position signal from the CANcoder results in failure.
+        var posStatus = m_absWheelAngleCANcoder.getAbsolutePosition();
+
+        for (int i = 0; i < 100; ++i) {
+            if (posStatus.getStatus().isOK()) {
+                break;
+            } else {
+                // Wait 10 ms and try again
+                Timer.delay(0.010);    // Only called at initialization, or rarely from
+                                               // teleop where no boot up delays are expected, 
+                                               // so .delay() is ugly here but OK to use.
+                posStatus = m_absWheelAngleCANcoder.getAbsolutePosition();
+            }
+            SmartDashboard.putNumber("Mod"+m_modNum+"AbsCANcoder read failed, read tries = ", i);         
+        }
+        posStatus.waitForUpdate(200);   // Then wait up to 200 ms for one more refresh before returning
+    }
+
+    public void resetToAbsolute(){
+        waitForCANcoder();
+        double CANcoderOnReset = getCANcoderDeg();
+        double absModuleDegOnReset = CANcoderOnReset - m_absAngleOffset2d.getDegrees();
+        //SmartDashboard.putString("Mod"+m_modNum+" CANcoder on Reset", F.df2.format(CANcoderOnReset));
+        setNeoPosDeg(absModuleDegOnReset);
+    }
+
+    private void configAbsWheelAngleCANcoder(){ 
+        var magnetSensorConfigs = new MagnetSensorConfigs().withAbsoluteSensorDiscontinuityPoint(SDC.CANCODER_RANGE)
+                                                           .withSensorDirection(SDC.CANCODER_DIR)
+                                                           .withMagnetOffset(0.0);
+        var ccConfig = new CANcoderConfiguration().withMagnetSensor(magnetSensorConfigs);
+        m_absWheelAngleCANcoder.getConfigurator().apply(ccConfig);
+    }
+
+/*
+     // call after Absolute offsets have been set
+     public void slowCanCoderBusUsage() {
+        // Don't use module CANCoders at all after initialization, so this is provided 
+        // to slow Cancoder usage way down
+        m_absWheelAngleCANcoder.getPosition().setUpdateFrequency(5);
+        m_absWheelAngleCANcoder.getVelocity().setUpdateFrequency(5);
+        // could call optimizeBus(), but that may affect logging.
+     }
+
+     // Wait for success before return? 
+     // Or call some time before needing encoders again (e.g. to RE-set absolute offsets)?
+     public void speedUpCancoderBusReports() {
+        m_absWheelAngleCANcoder.getPosition().setUpdateFrequency(100);
+     }
+*/
+    private void reportRevError(REVLibError errorCode) {
+        if (errorCode != REVLibError.kOk) {
+            SmartDashboard.putString("Mod "+m_modNum+"RevLibError = ", errorCode.toString());
+        }
+    }
+
+
+
+    private void configSteerMotor(){
+        // reportRevError(m_steerMotor.configure(null, null, null));
+        SparkMaxConfig config = new SparkMaxConfig();
+        
+        // Configure to send motor encoder position data frequently, but everything
+        // else at a lower rate, to minimize can bus traffic.
+        //reportRevError(SparkmaxUtil.setSparkmaxBusUsage(m_steerMotor, Usage.kPositionOnly));
+        config
+             .smartCurrentLimit
+             (SDC.STEER_SMART_CURRENT_LIMIT);
+        //setInverted returns void;
+        config
+             .inverted
+             (SDC.STEER_MOTOR_INVERT);
+        config
+             .idleMode
+             (IdleMode.kCoast);
+        //reportRevError(m_steerMotor.IdleMode(SDC.STEER_MOTOR_NEUTRAL_MODE));
+        config.closedLoop
+                .pidf
+                (SDC.STEER_KP, SDC.STEER_KI, SDC.STEER_KD, SDC.STEER_KF);
+        config.closedLoop
+             .outputRange
+             (SDC.MIN_STEER_CLOSED_LOOP_OUTPUT,SDC.MAX_STEER_CLOSED_LOOP_OUTPUT);                                          
+        config.closedLoop
+                .positionWrappingEnabled
+                (true);
+        config.closedLoop
+                .positionWrappingMinInput
+                (0);
+        config.closedLoop
+                .positionWrappingMaxInput
+                (360);
+         //Make integrated encoder read in native units of degrees
+        config.encoder
+                .positionConversionFactor
+                (360.0/SDC.STEER_GEAR_RATIO);
+        config
+                .voltageCompensation
+                (SDC.STEER_MOTOR_VOLTAGE_COMPENSATION);
+       // reportRevError(m_steerMotor.persistMode());   // Do this durng development, but not
+                                                    // routinely, to preserve the life of the
+                                                    // flash memory. Is it even necessary, since
+                                                    // all registers (except ID?) are written 
+                                                    // via code on every bootup?
+
+      
+
+      m_steerMotor.configure(config, ResetMode.kNoResetSafeParameters, PersistMode.kNoPersistParameters);
+
+        SmartDashboard.putString("Steer Motor Setup", "Complete");
+        resetToAbsolute();
+    }
+
+        void setCoastMode() {
+            SparkMaxConfig config = new SparkMaxConfig();
+            config.idleMode(IdleMode.kCoast);
+            
+            // Don't persist parameters since it takes time and this change is temporary
+            m_steerMotor.configure(config, ResetMode.kNoResetSafeParameters, PersistMode.kNoPersistParameters);
+        }
+    /*private void configSteerMotor(){
+        var openLoopConfig = new OpenLoopRampsConfigs().withDutyCycleOpenLoopRampPeriod(0)
+                                                       .withVoltageOpenLoopRampPeriod(SDC.OPEN_LOOP_RAMP_PERIOD);
+                                                       //.withTorqueOpenLoopRampPeriod(0);
+        var closedLoopConfig = new ClosedLoopRampsConfigs().withDutyCycleClosedLoopRampPeriod(0)
+                                                           .withVoltageClosedLoopRampPeriod(SDC.CLOSED_LOOP_RAMP_PERIOD)
+                                                           .withTorqueClosedLoopRampPeriod(0);
+        var feedbackConfig = new FeedbackConfigs().withFeedbackSensorSource(FeedbackSensorSourceValue.RotorSensor)
+                                                  .withSensorToMechanismRatio(SDC.STEER_GEAR_RATIO)
+                                                  .withRotorToSensorRatio(1.0);
+        MotorOutputConfigs motorOutputConfig = new MotorOutputConfigs().withNeutralMode(SDC.STEER_MOTOR_NEUTRAL_MODE)
+                                                        .withInverted(SDC.STEER_MOTOR_INVERT)
+                                                        .withPeakForwardDutyCycle(SDC.OUTPUT_ROTATE_LIMIT_FACTOR)
+                                                        .withPeakReverseDutyCycle(-SDC.OUTPUT_ROTATE_LIMIT_FACTOR);
+                                                        //.withDutyCycleNeutralDeadband(.001);
+        CurrentLimitsConfigs currentLimitConfig = new CurrentLimitsConfigs()
+                                                        .withSupplyCurrentLimit(SDC.STEER_SMART_CURRENT_LIMIT)
+                                                        .withStatorCurrentLimitEnable(SDC.STEER_ENABLE_CURRENT_LIMIT);
+        Slot0Configs pid0Configs = new Slot0Configs().withKP(SDC.STEER_KP)
+                                                     .withKI(SDC.STEER_KI)
+                                                     .withKD(SDC.STEER_KD);
+                                                     .withKS(SDC.STEER_KS)
+                                                     .withKV(SDC.STEER_KV)
+                                                     .withKA(SDC.STEER_KA)
+                                                     .withKG(SDC.STEER_KG);
+                                                    // .withGravityType(   );
+                                                    //    Elevator_Static if constant
+                                                    //    Arm_Cosign if variable. Sensor must be 0 when mechanism
+                                                    //                            is horiz, and sensor and Mechanism
+                                                    //                            position must be 1:1
+        var swerveDriveConfig = new SparkMaxConfig().withFeedback(feedbackConfig)
+                                                          .withMotorOutput(motorOutputConfig)
+                                                          .withCurrentLimits(currentLimitConfig)
+                                                          .withOpenLoopRamps(openLoopConfig)
+                                                          .withClosedLoopRamps(closedLoopConfig)
+                                                          .withSlot0(pid0Configs);
+        StatusCode status = m_driveMotor.getConfigurator().apply(swerveDriveConfig);
+
+        if (! status.isOK() ) {
+            SmartDashboard.putString("Failed to apply Steer configs in Mod "+m_modNum, " Error code: "+status.toString());
+        }
+    }*/
+
+    private void configDriveMotor(){
+        var openLoopConfig = new OpenLoopRampsConfigs().withDutyCycleOpenLoopRampPeriod(0)
+                                                       .withVoltageOpenLoopRampPeriod(SDC.OPEN_LOOP_RAMP_PERIOD);
+                                                       //.withTorqueOpenLoopRampPeriod(0);
+        var closedLoopConfig = new ClosedLoopRampsConfigs().withDutyCycleClosedLoopRampPeriod(0)
+                                                           .withVoltageClosedLoopRampPeriod(SDC.CLOSED_LOOP_RAMP_PERIOD)
+                                                           .withTorqueClosedLoopRampPeriod(0);
+        var feedbackConfig = new FeedbackConfigs().withFeedbackSensorSource(FeedbackSensorSourceValue.RotorSensor)
+                                                  .withSensorToMechanismRatio(SDC.DRIVE_GEAR_RATIO)
+                                                  .withRotorToSensorRatio(1.0);
+        var motorOutputConfig = new MotorOutputConfigs().withNeutralMode(SDC.DRIVE_MOTOR_NEUTRAL_MODE)
+                                                        .withInverted(SDC.DRIVE_MOTOR_INVERT)
+                                                        .withPeakForwardDutyCycle(SDC.OUTPUT_DRIVE_LIMIT_FACTOR)
+                                                        .withPeakReverseDutyCycle(-SDC.OUTPUT_DRIVE_LIMIT_FACTOR);
+                                                        //.withDutyCycleNeutralDeadband(.001);
+        CurrentLimitsConfigs currentLimitConfig = new CurrentLimitsConfigs()
+                                                        .withSupplyCurrentLimit(SDC.DRIVE_SUPPLY_CURRENT_LIMIT)
+                                                        .withSupplyCurrentLowerLimit(SDC.DRIVE_SUPPLY_CURRENT_THRESHOLD)
+                                                        .withSupplyCurrentLowerTime(SDC.DRIVE_SUPPLY_CURRENT_TIME_THRESHOLD)
+                                                        .withSupplyCurrentLimitEnable(SDC.DRIVE_ENABLE_SUPPLY_CURRENT_LIMIT)
+                                                        .withStatorCurrentLimit(SDC.DRIVE_STATOR_CURRENT_LIMIT)
+                                                        .withStatorCurrentLimitEnable(SDC.DRIVE_ENABLE_STATOR_CURRENT_LIMIT );
+        Slot0Configs pid0Configs = new Slot0Configs().withKP(SDC.DRIVE_KP)
+                                                     .withKI(SDC.DRIVE_KI)
+                                                     .withKD(SDC.DRIVE_KD)
+                                                     .withKS(SDC.DRIVE_KS)
+                                                     .withKV(SDC.DRIVE_KV)
+                                                     .withKA(SDC.DRIVE_KA)
+                                                     .withKG(SDC.DRIVE_KG);
+                                                    // .withGravityType(   );
+                                                    //    Elevator_Static if constant
+                                                    //    Arm_Cosign if variable. Sensor must be 0 when mechanism
+                                                    //                            is horiz, and sensor and Mechanism
+                                                    //                            position must be 1:1
+        var swerveDriveConfig = new TalonFXConfiguration().withFeedback(feedbackConfig)
+                                                          .withMotorOutput(motorOutputConfig)
+                                                          .withCurrentLimits(currentLimitConfig)
+                                                          .withOpenLoopRamps(openLoopConfig)
+                                                          .withClosedLoopRamps(closedLoopConfig)
+                                                          .withSlot0(pid0Configs);
+        StatusCode status = m_driveMotor.getConfigurator().apply(swerveDriveConfig);
+
+        if (! status.isOK() ) {
+            SmartDashboard.putString("Failed to apply Drive configs in Mod "+m_modNum, " Error code: "+status.toString());
+        }
+    }
+
+    public SwerveModuleState getState(){
+        return new SwerveModuleState(
+            getVelocityMPS(),
+            getAngle2d()
+        ); 
+    }
+
+    public double getPositionM(){
+        return m_driveMotor.getPosition().getValueAsDouble() * SDC.TALONFX_ROT_TO_M_FACTOR; 
+    }
+
+    public double getVelocityMPS() {
+        return m_driveMotor.getVelocity().getValueAsDouble() * SDC.TALONFX_RPS_TO_MPS_FACTOR;
+    }
+
+    public SwerveModulePosition getModulePosition(){
+        return new SwerveModulePosition(
+            getPositionM(), 
+            getAngle2d()
+        );
+    }
+
+    public void setupModulePublishing() {
+        ShuffleboardLayout sBE_Layout = m_moduleConstants.SBE_LAYOUT;
+        // See comment above about not needing to retain these Entry keys
+        /* IdsEntry (D R E)= */ sBE_Layout.add("Ids", 
+                                               F.df1.format(m_moduleConstants.DRIVE_MOTOR_ID)+
+                                               "  "+F.df1.format(m_moduleConstants.STEER_MOTOR_ID)+
+                                               "  "+F.df1.format(m_moduleConstants.ENCODER_ID));
+        /* absOffsetEntry = */  sBE_Layout.add("Offset", F.df1.format(m_moduleConstants.ABS_ANG_OFFSET2D.getDegrees()));
+        absCANcoderDegEntry =   sBE_Layout.add("CCdeg", "0").getEntry();
+        steerEncoderDegEntry =  sBE_Layout.add("MEdeg", "0").getEntry();
+        steerSetpointDegEntry = sBE_Layout.add("SPdeg", "0").getEntry();
+        steerPIDOutputEntry =   sBE_Layout.add("PID_O", "0").getEntry();
+        wheelCurrSpeedEntry =   sBE_Layout.add("Wspd", "0").getEntry();
+        wheelCurrPosEntry =     sBE_Layout.add("Wpos", "0").getEntry();
+        wheelAmpsEntry =        sBE_Layout.add("DrAmps", "0").getEntry();
+        wheelTempEntry =        sBE_Layout.add("DrTemp", "0").getEntry();
+        steerAmpsEntry =        sBE_Layout.add("R_Amps", "0").getEntry();
+        steerTempEntry =        sBE_Layout.add("R_Temp", "0").getEntry();
+    }
+
+    public void publishModuleData() {
+        // CANcoder direction
+        absCANcoderDegEntry.setString(F.df1.format(getCANcoderDeg()));
+        // Current wheel direction
+        steerEncoderDegEntry.setString(F.df1.format(getNeoPosDeg()));
+        // Wheel direction (steer) setpoint
+        steerSetpointDegEntry.setString(F.df1.format(normalizeAngle0To360(m_lastAngle)));
+        //steerSetpointDegEntry.setString(F.df1.format(m_lastAngle));
+        // SteerMotor PID applied ouutput    
+        steerPIDOutputEntry.setString(F.df2.format(m_steerMotor.getAppliedOutput()));
+        // Wheel Speed
+        wheelCurrSpeedEntry.setString(F.df1.format(getVelocityMPS()));
+        // Wheel position, meters
+        wheelCurrPosEntry.setString(F.df2.format(getPositionM()));
+        // Wheel Amps
+        wheelAmpsEntry.setString(F.df1.format(m_driveMotor.getSupplyCurrent().getValueAsDouble()));
+        // Wheel Temp
+        wheelTempEntry.setString(F.df1.format(m_driveMotor.getDeviceTemp().getValueAsDouble()));
+        // Steering Amps
+        steerAmpsEntry.setString(F.df1.format(m_steerMotor.getOutputCurrent()));
+        // Steering Temp
+        steerTempEntry.setString(F.df1.format(m_steerMotor.getMotorTemperature()));
+    }
+
+    public void stop() {
+        m_driveOpenLoop.Output = 0.0;
+        m_driveMotor.setControl(m_driveOpenLoop);
+        m_steerMotor.stopMotor();
+    }
+}
