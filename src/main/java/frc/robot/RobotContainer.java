@@ -18,7 +18,7 @@ import edu.wpi.first.wpilibj2.command.button.Trigger;
 // import frc.robot.NotableConstants.SC;
 // import frc.robot.autos.*;
 import frc.robot.commands.*;
-import frc.robot.subsystems.PoseEstimatorSubsystem;
+import frc.robot.subsystems.VisionTestSubsystem;
 // import frc.robot.subsystems.MasterArmSubsystem;
 import frc.robot.subsystems.SwerveSubsystem;
 
@@ -33,10 +33,10 @@ public class RobotContainer {
     private SwerveSubsystem          m_swerveSubsystem;
    // private MasterArmSubsystem       m_masterArmSubsystem;
    // private ClimbSubsystem           m_climbSubsystem;
-    private PoseEstimatorSubsystem  m_poseEstimatorSubsystem;
+    private VisionTestSubsystem  m_visionTestSubsystem;
     private SwerveParkCmd            m_parkCmd;
 
-    private ChaseTagCmd              m_ChaseTagCmd;
+   // private ChaseTagCmd              m_ChaseTagCmd;
     private PhotonCamera             limelight;
     private Supplier<Pose2d> m_robotPoseSupplier = ()-> m_swerveSubsystem.getPose();
 
@@ -64,9 +64,12 @@ public class RobotContainer {
         m_xbox = new CommandXboxController(0);
         limelight = new PhotonCamera("limelight");
         m_swerveSubsystem = new SwerveSubsystem();
-        m_poseEstimatorSubsystem = new PoseEstimatorSubsystem(limelight, m_swerveSubsystem);
+        //m_poseEstimatorSubsystem = new PoseEstimatorSubsystem(limelight, m_      swerveSubsystem);
     //    m_masterArmSubsystem = new MasterArmSubsystem();
     //    m_climbSubsystem = new ClimbSubsystem();
+    
+        /*m_visionTestSubsystem = new VisionTestSubsystem(limelight,
+                                                         m_swerveSubsystem);*/
 
         m_swerveSubsystem.setDefaultCommand(
                 new DefaultDriveCmd(m_swerveSubsystem,
@@ -79,10 +82,11 @@ public class RobotContainer {
                                       () -> -m_xbox.getLeftY(),
                                       () -> -m_xbox.getLeftX(),
                                       () -> -m_xbox.getRightX());
-        m_ChaseTagCmd = new ChaseTagCmd(limelight,
+       /* m_ChaseTagCmd = new ChaseTagCmd(limelight,
                                         m_swerveSubsystem,
                                         m_robotPoseSupplier);
-                    
+*/
+                           
     /*
         m_scoreThenExitRedLeftAuto      = new ScoreThenExitRedLeftAuto(m_masterArmSubsystem,
                                                                        m_swerveSubsystem);
@@ -202,7 +206,7 @@ public class RobotContainer {
         // Note handling activities
 
         // AprilTag aim
-          ALT.and(m_xbox.a()).onTrue(m_ChaseTagCmd);
+         // ALT.and(m_xbox.a()).onTrue(m_ChaseTagCmd);
 /*
         m_xbox.b().onTrue(new InstantCommand(()->m_masterArmSubsystem.acquireNote()));
         m_xbox.a().and(ALT.negate()).onTrue(new InstantCommand(()->m_masterArmSubsystem.prepForAmpScore()));

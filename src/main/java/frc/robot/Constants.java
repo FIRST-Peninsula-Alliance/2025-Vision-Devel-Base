@@ -469,7 +469,7 @@ public final class Constants {
 
        
     }
-    public static final class VisionConstants{
+    public static final class VC{
 
         /**
         * Physical location of the camera on the robot, relative to the center of the robot.        
@@ -478,5 +478,12 @@ public final class Constants {
         new Transform3d(new Translation3d(0, 0.0, 0), new Rotation3d());
     
         public static final Transform3d ROBOT_TO_CAMERA = CAMERA_TO_ROBOT.inverse();
+
+        public static final double APRILTAG_AREA_IN = 42.25;
+
+        public static final double MEASURED_APRILTAG_AREA = 0;
+
+        public static final Double OFFSET_3_FT = 3.0;
+
     }
 }

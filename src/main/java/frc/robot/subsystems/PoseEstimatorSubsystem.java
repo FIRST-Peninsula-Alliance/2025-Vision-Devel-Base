@@ -1,7 +1,6 @@
 package frc. robot.subsystems;
-
+/*
 import static edu.wpi.first.math.util.Units.degreesToRadians;
-import static frc.robot.Constants.VisionConstants.CAMERA_TO_ROBOT;
 
 import java.util.Collections;
 import java.util.List;
@@ -24,10 +23,10 @@ import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.math.numbers.N5;
 import edu.wpi.first.math.numbers.N7;
 import edu.wpi.first.math.util.Units;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.shuffleboard.Shuffleboard;
 import edu.wpi.first.wpilibj.shuffleboard.ShuffleboardTab;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import edu.wpi.first.math.trajectory.Trajectory;
@@ -62,18 +61,19 @@ public class PoseEstimatorSubsystem extends SubsystemBase {
    * Standard deviations of model states. Increase these numbers to trust your model's state estimates less. This
    * matrix is in the form [x, y, theta, s_0, ... s_n]ᵀ, with units in meters and radians, then meters.
    */
+  /*
   private static final Vector<N7> stateStdDevs = VecBuilder.fill(0.05, 0.05, Units.degreesToRadians(5), 0.05, 0.05, 0.05, 0.05);
   
   /**
    * Standard deviations of the encoder and gyro measurements. Increase these numbers to trust sensor readings from
    * encoders and gyros less. This matrix is in the form [theta, s_0, ... s_n], with units in radians followed by meters.
    */
-  private static final Vector<N5> localMeasurementStdDevs = VecBuilder.fill(Units.degreesToRadians(0.01), 0.01, 0.01, 0.01, 0.01);
+  //private static final Vector<N5> localMeasurementStdDevs = VecBuilder.fill(Units.degreesToRadians(0.01), 0.01, 0.01, 0.01, 0.01);
   
   /**
    * Standard deviations of the vision measurements. Increase these numbers to trust global measurements from vision
    * less. This matrix is in the form [x, y, theta]ᵀ, with units in meters and radians.
-   */
+   *//*
   private static final Vector<N3> visionMeasurementStdDevs = VecBuilder.fill(0.5, 0.5, Units.degreesToRadians(10));
 
   private final SwerveDrivePoseEstimator poseEstimator;
@@ -93,7 +93,7 @@ public class PoseEstimatorSubsystem extends SubsystemBase {
     poseEstimator =  new SwerveDrivePoseEstimator(
         SDC.SWERVE_KINEMATICS,
         m_swerveSubsystem.getYaw2d(),
-        m_swerveSubsystem.getModulePositions(), 
+        m_swerveSubsystem.getModulePositions(),
         initialPoseMeters);
     
     CAMERA_TO_ROBOT = new Transform3d();
@@ -101,19 +101,19 @@ public class PoseEstimatorSubsystem extends SubsystemBase {
         m_gyro = new Pigeon2(GC.PIGEON_2_CANID, Constants.ROBO_RIO_BUS_NAME);
 
 
-  }
+  }*/
 
-  @Override
-  public void periodic() {
+  //@Override
+  /*public void periodic() {
     // Update pose estimator with the best visible target
     var pipelineResult = limelight.getLatestResult();
     var resultTimestamp = pipelineResult.getTimestampSeconds();
 
     SmartDashboard.putBoolean("Camera Has Targets", limelight.getLatestResult().hasTargets() == true);
 
-    if (/*resultTimestamp != previousPipelineTimestamp && */pipelineResult.hasTargets()) {
+    if (/*resultTimestamp != previousPipelineTimestamp && *///pipelineResult.hasTargets()) {
       //previousPipelineTimestamp = resultTimestamp;
-      var target = pipelineResult.getBestTarget();
+      /*var target = pipelineResult.getBestTarget();
       var fiducialId = target.getFiducialId();
       if (target.getPoseAmbiguity() <= .2 && fiducialId >= 0 && fiducialId < targetPoses.size()) {
         var targetPose = targetPoses.get(fiducialId);
@@ -148,13 +148,13 @@ public class PoseEstimatorSubsystem extends SubsystemBase {
   public Pose2d getCurrentPose() {
     return poseEstimator.getEstimatedPosition();
   }
-
+*/
   /**
    * Resets the current pose to the specified pose. This should ONLY be called
    * when the robot's position on the field is known, like at the beginning of
    * a match.
    * @param newPose new pose
-   */
+   *//*
   public void setCurrentPose(Pose2d newPose) {
     poseEstimator.resetPosition(
       m_swerveSubsystem.getYaw2d(),
@@ -166,8 +166,8 @@ public class PoseEstimatorSubsystem extends SubsystemBase {
    * Resets the position on the field to 0,0 0-degrees, with forward being downfield. This resets
    * what "forward" is for field oriented driving.
    */
-  public void resetFieldPosition() {
+ /* public void resetFieldPosition() {
     setCurrentPose(new Pose2d());
   }
 
-}
+}*/             

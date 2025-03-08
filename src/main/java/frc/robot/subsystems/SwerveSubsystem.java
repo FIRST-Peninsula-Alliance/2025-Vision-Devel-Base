@@ -310,7 +310,6 @@ public class SwerveSubsystem extends SubsystemBase {
         publishSwerveDriveData();
         SmartDashboard.getString("GET", "GOOD");
     }
-
     // This is a test routine, designed to rotate all modules
     // synchronously to an identical specified heading in degrees
     public void rotateModulesToAngle(double angleDeg) {
