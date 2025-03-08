@@ -25,6 +25,7 @@ import edu.wpi.first.math.estimator.SwerveDrivePoseEstimator;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
 
 import java.util.HashMap;
@@ -38,8 +39,8 @@ import com.fasterxml.jackson.databind.EnumNamingStrategies.CamelCaseStrategy;
 
 public class VisionTestSubsystem extends SubsystemBase{
 
-    //private final PhotonCamera m_photonCamera;
-    //private final LimelightResults m_limelight;
+    // private final PhotonCamera m_photonCamera;
+    // private final LimelightResults m_limelight;
     private final SwerveSubsystem m_swerveSubsystem;
     private final SwerveDrivePoseEstimator m_drivePoseEstimator;
     private final Pose2d initialPoseMeters;
@@ -51,7 +52,6 @@ public class VisionTestSubsystem extends SubsystemBase{
     //HashMap<String, Double> cam2Data = new HashMap<String, Double>();
 
     //PhotonCamera camera = new PhotonCamera("limelight");
-
 
 
     
@@ -81,38 +81,31 @@ public class VisionTestSubsystem extends SubsystemBase{
      
 
     public void getVisionData(){
-        /*
-        var result = m_photonCamera.getLatestResult();
-        boolean hasTargets = result.hasTargets();
-
-        SmartDashboard.putBoolean("hasTargets", hasTargets);
-
-        if(result.hasTargets()){
-             List<PhotonTrackedTarget> targets = result.getTargets();
-             double Yaw = targets.get(0).getYaw();
-                SmartDashboard.putNumber("Target Yaw", Yaw);
-
-             double Pitch = targets.get(0).getPitch();
-                SmartDashboard.putNumber("Target Pitch", Pitch);
-        }
-    */
 
     NetworkTable table = NetworkTableInstance.getDefault().getTable("cam");
 
-    boolean Tv = table.getEntry("tv").getBoolean(false);
+    //check for target
+    boolean Tv = table.getEntry("tv").getBoolean(true);
         SmartDashboard.putBoolean("Cam has targets", Tv);
 
     //SmartDashboard.getBoolean("Cam2 has targets", LimelightHelpers.getTV("cam2"));
     
-    if(Tv == true){
-        double Tx = table.getEntry("tx").getDouble(0);
-            camData.put("Tx", Tx);
+    if(Tv){
 
+        //get horizontal value
+        double Tx = table.getEntry("tx").getDouble(0);
+            camData.put("TxCam", Tx);
+            SmartDashboard.putNumber("TX", Tx);
+
+        //get vertical value
         double Ty = table.getEntry("ty").getDouble(0);
             camData.put("TyCam", Ty);
+            SmartDashboard.putNumber("TY", Ty);
 
+        //get area value
         double Ta = table.getEntry("ty").getDouble(0);
             camData.put("TaCam", Ta);
+            SmartDashboard.putNumber("TA", Ta);
     }
         /*
     if(LimelightHelpers.getTV("cam2")){
@@ -172,7 +165,7 @@ public class VisionTestSubsystem extends SubsystemBase{
     //}
     double limelightDistToTarget(){
 
-        double distance = Math.sqrt(Constants.VC.APRILTAG_AREA_IN/Constants.VC.MEASURED_APRILTAG_AREA);
+        double distance = Math.sqrt(Constants.VC.APRILTAG_AREA_IN/ camData.get("TaCam"));
 
         return distance;
     }

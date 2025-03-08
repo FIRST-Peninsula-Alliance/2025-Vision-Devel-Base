@@ -481,7 +481,7 @@ public final class Constants {
 
         public static final double APRILTAG_AREA_IN = 42.25;
 
-        public static final double MEASURED_APRILTAG_AREA = 0;
+        public static final double MEASURED_APRILTAG_AREA = 25; // 1 foot away
 
         public static final Double OFFSET_3_FT = 3.0;
 

@@ -6,14 +6,20 @@ import org.photonvision.PhotonCamera;
 
 import edu.wpi.first.math.estimator.PoseEstimator;
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.XboxController;
 //import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 // import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.InstantCommand;
 
+import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableInstance;
+
+
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
+import frc.robot.LimelightHelpers.LimelightResults;
 // import frc.robot.subsystems.ClimbSubsystem;
 // import frc.robot.NotableConstants.SC;
 // import frc.robot.autos.*;
@@ -37,7 +43,7 @@ public class RobotContainer {
     private SwerveParkCmd            m_parkCmd;
 
    // private ChaseTagCmd              m_ChaseTagCmd;
-    private PhotonCamera             limelight;
+    private LimelightResults             limelight;
     private Supplier<Pose2d> m_robotPoseSupplier = ()-> m_swerveSubsystem.getPose();
 
     // Declare handles for choosable autonomous Commands
@@ -62,14 +68,15 @@ public class RobotContainer {
     //  Constructor for the robot container. Contains subsystems, OI devices, and commands.
     public RobotContainer() {
         m_xbox = new CommandXboxController(0);
-        limelight = new PhotonCamera("limelight");
+        NetworkTable table = NetworkTableInstance.getDefault().getTable("cam");
+        //limelight = 
         m_swerveSubsystem = new SwerveSubsystem();
         //m_poseEstimatorSubsystem = new PoseEstimatorSubsystem(limelight, m_      swerveSubsystem);
     //    m_masterArmSubsystem = new MasterArmSubsystem();
     //    m_climbSubsystem = new ClimbSubsystem();
     
-        /*m_visionTestSubsystem = new VisionTestSubsystem(limelight,
-                                                         m_swerveSubsystem);*/
+        m_visionTestSubsystem = new VisionTestSubsystem(limelight,
+                                                         m_swerveSubsystem);
 
         m_swerveSubsystem.setDefaultCommand(
                 new DefaultDriveCmd(m_swerveSubsystem,
