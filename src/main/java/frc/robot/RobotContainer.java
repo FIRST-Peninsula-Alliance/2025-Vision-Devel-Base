@@ -1,5 +1,6 @@
 package frc.robot;
 
+import java.lang.ModuleLayer.Controller;
 import java.util.function.Supplier;
 
 import org.photonvision.PhotonCamera;
@@ -12,11 +13,9 @@ import edu.wpi.first.wpilibj.XboxController;
 // import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.InstantCommand;
-
+import edu.wpi.first.wpilibj2.command.RepeatCommand;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
-
-
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.LimelightHelpers.LimelightResults;
@@ -40,11 +39,12 @@ public class RobotContainer {
    // private MasterArmSubsystem       m_masterArmSubsystem;
    // private ClimbSubsystem           m_climbSubsystem;
     private VisionTestSubsystem  m_visionTestSubsystem;
-    private SwerveParkCmd            m_parkCmd;
-
-   // private ChaseTagCmd              m_ChaseTagCmd;
+    private SwerveParkCmd             m_parkCmd;
+    private ChaseTagCmd               m_ChaseTagCmd;
+    private DriveToTargetCmd           m_DriveToTargetCmd;
     private LimelightResults             limelight;
     private Supplier<Pose2d> m_robotPoseSupplier = ()-> m_swerveSubsystem.getPose();
+    private RepeatCommand repeatCommand;
 
     // Declare handles for choosable autonomous Commands
    // private JustScoreLeftAuto           m_justScoreLeftAuto;
@@ -68,7 +68,6 @@ public class RobotContainer {
     //  Constructor for the robot container. Contains subsystems, OI devices, and commands.
     public RobotContainer() {
         m_xbox = new CommandXboxController(0);
-        NetworkTable table = NetworkTableInstance.getDefault().getTable("cam");
         //limelight = 
         m_swerveSubsystem = new SwerveSubsystem();
         //m_poseEstimatorSubsystem = new PoseEstimatorSubsystem(limelight, m_      swerveSubsystem);
@@ -93,7 +92,11 @@ public class RobotContainer {
                                         m_swerveSubsystem,
                                         m_robotPoseSupplier);
 */
-                           
+  
+   // m_testVisionCmd = new TestVisionCmd(m_visionTestSubsystem);
+    m_ChaseTagCmd = new ChaseTagCmd(m_swerveSubsystem, m_visionTestSubsystem);        
+    
+    m_DriveToTargetCmd = new DriveToTargetCmd(m_swerveSubsystem, m_visionTestSubsystem);
     /*
         m_scoreThenExitRedLeftAuto      = new ScoreThenExitRedLeftAuto(m_masterArmSubsystem,
                                                                        m_swerveSubsystem);
@@ -181,19 +184,19 @@ public class RobotContainer {
         //    ALT + POV_DOWN        => retract elevator when held
         //    ALT + LeftTrigger     => Run climbing winch when held
 
-        /*
-        The following methods can be used to trigger rotation about any given corner. Most useful when
-        playing defense. Retained here in case a quick change to defense at competition
-        is needed, but normally these button bindings are needed for offense.
+        
+        //The following methods can be used to trigger rotation about any given corner. Most useful when
+        //playing defense. Retained here in case a quick change to defense at competition
+        //is needed, but normally these button bindings are needed for offense.
         m_xbox.leftTrigger().onTrue(new InstantCommand(()-> m_swerveSubsystem.setFLCenOfRotation()));
         m_xbox.leftTrigger().onFalse(new InstantCommand(()-> m_swerveSubsystem.resetCenOfRotation()));
         m_xbox.rightTrigger().onTrue(new InstantCommand(()-> m_swerveSubsystem.setFRCenOfRotation()));                                        
         m_xbox.rightTrigger().onFalse(new InstantCommand(()-> m_swerveSubsystem.resetCenOfRotation()));  
-        m_xbox.leftBumper().onTrue(new InstantCommand(()-> m_swerveSubsystem.setBLCenOfRotation()));
-        m_xbox.leftBumper().onFalse(new InstantCommand(()-> m_swerveSubsystem.resetCenOfRotation()));
-        m_xbox.rightBumper().onTrue(new InstantCommand(()-> m_swerveSubsystem.setBRCenOfRotation()));
-        m_xbox.rightBumper().onFalse(new InstantCommand(()-> m_swerveSubsystem.resetCenOfRotation()));
-        */
+        //m_xbox.leftBumper().onTrue(new InstantCommand(()-> m_swerveSubsystem.setBLCenOfRotation()));
+        //m_xbox.leftBumper().onFalse(new InstantCommand(()-> m_swerveSubsystem.resetCenOfRotation()));
+        //m_xbox.rightBumper().onTrue(new InstantCommand(()-> m_swerveSubsystem.setBRCenOfRotation()));
+        //m_xbox.rightBumper().onFalse(new InstantCommand(()-> m_swerveSubsystem.resetCenOfRotation()));
+        
         // Left and right joystick buttons determine field oriented or robot oriented driving
         m_xbox.leftStick().and(ALT.negate()).onTrue(new InstantCommand(()-> m_swerveSubsystem.setFieldOriented(true)));
         m_xbox.rightStick().and(ALT.negate()).onTrue(new InstantCommand(()-> m_swerveSubsystem.setFieldOriented(false)));
@@ -209,11 +212,16 @@ public class RobotContainer {
 //        m_xbox.x().and(ALT.negate()).onTrue(new InstantCommand(()->m_masterArmSubsystem.cancelNoteAction()));
         // Swerve park 
          ALT.and(m_xbox.x()).onTrue(m_parkCmd);
+
+         m_xbox.a().onTrue(m_DriveToTargetCmd);
         
         // Note handling activities
 
+        //vision based drive
+     //m_xbox.a().whileTrue(m_ChaseTagCmd.repeatedly());
+         
         // AprilTag aim
-         // ALT.and(m_xbox.a()).onTrue(m_ChaseTagCmd);
+          //m_xbox.a().onTrue(m_ChaseTagCmd);
 /*
         m_xbox.b().onTrue(new InstantCommand(()->m_masterArmSubsystem.acquireNote()));
         m_xbox.a().and(ALT.negate()).onTrue(new InstantCommand(()->m_masterArmSubsystem.prepForAmpScore()));

@@ -308,7 +308,6 @@ public class SwerveSubsystem extends SubsystemBase {
         m_swerveOdometry.update(getYaw2d(), getModulePositions()); 
         m_location = m_swerveOdometry.getPoseMeters();
         publishSwerveDriveData();
-        SmartDashboard.getString("GET", "GOOD");
     }
     // This is a test routine, designed to rotate all modules
     // synchronously to an identical specified heading in degrees
