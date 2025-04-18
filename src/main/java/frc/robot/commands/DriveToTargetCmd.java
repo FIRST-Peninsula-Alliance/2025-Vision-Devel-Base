@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Vector;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -72,30 +73,28 @@ public class DriveToTargetCmd extends Command{
     camData.put("targetposeZ", targetposeZ);
     camData.put("targetposeYaw", targetposeYaw);
     }
-    @Override 
-    public void execute(){
-        
-    }
+
     @Override
-    public void initialize(){
-    
+    public void execute(){
+    //TODO: add trajectory generation
     getCamData();
 
-        TrajectoryConfig  moveConfig = new TrajectoryConfig((AutoC.AUTO_MAX_SPEED_M_PER_SEC *
+    TrajectoryConfig  moveConfig = new TrajectoryConfig((AutoC.AUTO_MAX_SPEED_M_PER_SEC *
                                                         AutoC.AUTO_SPEED_FACTOR_GENERIC),
                                                         (AutoC.AUTO_MAX_ACCEL_M_PER_SEC2 *
                                                         AutoC.AUTO_ACCEL_FACTOR_GENERIC))
                                                         .setKinematics(SDC.SWERVE_KINEMATICS);
         
-        moveConfig.setReversed(false);
-        var start = new Pose2d(camData.get("targetposeZ"),
+    moveConfig.setReversed(false);
+     var start = new Pose2d(camData.get("targetposeZ"),
                                camData.get("targetposeY"),
                                GetRadian());
 
-        var end = new Pose2d(finalDist,
+     var end = new Pose2d(finalDist,
                              finalY,
                              new Rotation2d(finalAngle));
-        
+  Double[] controlVectors = new Double[4];
+            new Vector<>();
         TrajectoryGenerator.generateTrajectory(
         start,
         end,
@@ -120,7 +119,6 @@ public class DriveToTargetCmd extends Command{
                 Rotation2d.fromDegrees(0.0)),
      exitConfig
     );*/
-    //TODO: icorporate trajectory generator
     
 
     @Override
