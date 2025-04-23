@@ -5,7 +5,9 @@ import frc.robot.subsystems.VisionTestSubsystem;
 import frc.robot.Constants;
 import frc.robot.Constants.AutoC;
 import frc.robot.Constants.SDC;
+import frc.robot.autos.TrajectoryPaths.AutoPathTestCmd;
 import frc.robot.subsystems.SwerveSubsystem;
+
 
 import static edu.wpi.first.units.Units.Rotation;
 
@@ -16,6 +18,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Vector;
 
+import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Transform2d;
@@ -23,12 +27,15 @@ import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.spline.Spline;
 import edu.wpi.first.math.spline.Spline.ControlVector;
 import edu.wpi.first.units.measure.Angle;
-
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.InstantCommand;
+import edu.wpi.first.wpilibj2.command.SwerveControllerCommand;
 import edu.wpi.first.math.trajectory.Trajectory;
 import edu.wpi.first.math.trajectory.TrajectoryConfig;
 import edu.wpi.first.math.trajectory.TrajectoryGenerator;
 import edu.wpi.first.math.trajectory.TrajectoryGenerator.ControlVectorList;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 
@@ -40,9 +47,9 @@ public class DriveToTargetCmd extends Command{
 
     HashMap<String, Double> camData = new HashMap<String, Double>();
 
-    double finalDist = 1;
-    double finalAngle = 0;
-    double finalY = 0;
+    double finalDist = Units.feetToMeters(3);
+    double finalAngle = Units.feetToMeters(0);
+    double finalY = Units.feetToMeters(0);
 
 
     public DriveToTargetCmd(SwerveSubsystem swerve, VisionTestSubsystem vision){
@@ -75,7 +82,8 @@ public class DriveToTargetCmd extends Command{
     }
 
     @Override
-    public void execute(){
+    public void initialize(){
+
     //TODO: add trajectory generation
     getCamData();
 
@@ -85,7 +93,9 @@ public class DriveToTargetCmd extends Command{
                                                         AutoC.AUTO_ACCEL_FACTOR_GENERIC))
                                                         .setKinematics(SDC.SWERVE_KINEMATICS);
         
-    moveConfig.setReversed(false);
+     SmartDashboard.putNumber("start Pose", camData.get("targetposeZ"));
+
+   
      var start = new Pose2d(camData.get("targetposeZ"),
                                camData.get("targetposeY"),
                                GetRadian());
@@ -93,15 +103,28 @@ public class DriveToTargetCmd extends Command{
      var end = new Pose2d(finalDist,
                              finalY,
                              new Rotation2d(finalAngle));
-  Double[] controlVectors = new Double[4];
-            new Vector<>();
+
+
+        Trajectory moveCamAuto =
         TrajectoryGenerator.generateTrajectory(
-        start,
-        end,
+        List.of(start,
+                end),
         moveConfig
         );
-    }
 
+        var poseList = moveCamAuto.getStates();
+
+        var totalTime = moveCamAuto.getTotalTimeSeconds();
+
+        var endX = moveCamAuto.sample(1.0).poseMeters.getX();
+        var endY = moveCamAuto.sample(1.0).poseMeters.getY();
+        
+        SmartDashboard.putNumber("total time", totalTime);
+        SmartDashboard.putNumber("end pose X", endX);
+        SmartDashboard.putNumber("end pose Y", endY);
+
+        new AutoPathTestCmd(m_swerveSubsystem, moveCamAuto).schedule();
+    }
    /* 
     TrajectoryGenerator.generateTrajectory
     (
@@ -121,13 +144,4 @@ public class DriveToTargetCmd extends Command{
     );*/
     
 
-    @Override
-    public boolean isFinished(){
-
-        boolean Z = camData.get("targetposeZ") == finalDist;
-        boolean Y = camData.get("targetposeY") == finalY;
-        boolean Ang = camData.get("targetposeYaw") == finalAngle;
-
-        return Ang && Y && Z;
-    }
 }
