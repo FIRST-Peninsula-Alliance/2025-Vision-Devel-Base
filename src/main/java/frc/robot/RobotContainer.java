@@ -40,8 +40,7 @@ public class RobotContainer {
    // private ClimbSubsystem           m_climbSubsystem;
     private VisionTestSubsystem  m_visionTestSubsystem;
     private SwerveParkCmd             m_parkCmd;
-    private ChaseTagCmd               m_ChaseTagCmd;
-    private DriveToTargetCmd           m_DriveToTargetCmd;
+    private HolonomicTargetCommand     m_HolonomicTargetCommand;
     private LimelightResults             limelight;
     private Supplier<Pose2d> m_robotPoseSupplier = ()-> m_swerveSubsystem.getPose();
     private RepeatCommand repeatCommand;
@@ -94,9 +93,7 @@ public class RobotContainer {
 */
   
    // m_testVisionCmd = new TestVisionCmd(m_visionTestSubsystem);
-    m_ChaseTagCmd = new ChaseTagCmd(m_swerveSubsystem, m_visionTestSubsystem);        
-    
-    m_DriveToTargetCmd = new DriveToTargetCmd(m_swerveSubsystem, m_visionTestSubsystem);
+   m_HolonomicTargetCommand = new HolonomicTargetCommand(m_swerveSubsystem, m_visionTestSubsystem);
     /*
         m_scoreThenExitRedLeftAuto      = new ScoreThenExitRedLeftAuto(m_masterArmSubsystem,
                                                                        m_swerveSubsystem);
@@ -212,8 +209,8 @@ public class RobotContainer {
 //        m_xbox.x().and(ALT.negate()).onTrue(new InstantCommand(()->m_masterArmSubsystem.cancelNoteAction()));
         // Swerve park 
          ALT.and(m_xbox.x()).onTrue(m_parkCmd);
-
-         m_xbox.a().onTrue(m_DriveToTargetCmd);
+         m_xbox.a().whileTrue(m_HolonomicTargetCommand);
+         //m_xbox.a().onTrue(m_DriveToTargetCmd);
         
         // Note handling activities
 
