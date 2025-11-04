@@ -46,6 +46,7 @@ public class HolonomicTargetCommand extends Command {
   }
 
   @Override
+  // TODO: We should never communicate through smartdashboard imo.
   public void execute() {
     double[] results = {SmartDashboard.getNumber("targetposeX", 0),     // [0]
                         SmartDashboard.getNumber("targetposeY", 0),     // [1]

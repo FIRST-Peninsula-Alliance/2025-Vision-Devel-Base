@@ -83,7 +83,7 @@ public class VisionTestSubsystem extends SubsystemBase{
         double targetposeRoll = targetpose[3];
         double targetposePitch = targetpose[4];
         double targetposeYaw = targetpose[5];
-        
+        // TODO: we should NEVER communicate through smart dashboard. It is for data visualization only imo - mica
         camData.put("targetposeX", targetposeX);
         camData.put("targetposeY", targetposeY);
         camData.put("targetposeZ", targetposeZ);
@@ -130,7 +130,7 @@ public class VisionTestSubsystem extends SubsystemBase{
 
 
         camData.put("distanceArea", distanceArea);
-        SmartDashboard.putNumber("distArea", distanceArea);
+        SmartDashboard.putNumber("distArea", distanceArea);  
 
         return distanceArea; 
     }
