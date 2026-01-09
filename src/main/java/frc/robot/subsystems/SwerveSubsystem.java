@@ -294,6 +294,7 @@ public class SwerveSubsystem extends SubsystemBase {
             m_odometryPoseYEntry.setString(F.df2.format(m_location.getY()));           
             m_odometryHeadingEntry.setString(F.df2.format(m_location.getRotation().getRadians()));
             m_isFieldOrientedEntry.setString(m_isFieldOriented ? "Yes" : "No");
+
         // m_gyroPitchEntry
         // m_gyroRollEntry
 
@@ -332,5 +333,8 @@ public class SwerveSubsystem extends SubsystemBase {
         for(SwerveModule mod : m_swerveMods) {
             mod.stop();
         }            
+    }
+    public double getCurrentPose() {
+        return m_swerveOdometry.getPoseMeters().getY();
     }
 }

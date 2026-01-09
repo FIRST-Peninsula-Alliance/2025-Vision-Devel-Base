@@ -481,12 +481,12 @@ public final class Constants {
     
         public static final Transform3d ROBOT_TO_CAMERA = CAMERA_TO_ROBOT.inverse();
 
-        public static final double APRILTAG_AREA_IN = 42.25;
+        public static final double APRILTAG_HEIGHT = 27; //27 inches off the ground
 
-        public static final double MEASURED_APRILTAG_AREA = 25; // 1 foot away
+        public static final double CAM_MOUNT_ANGLE = 90; // This number is redundant if the camera is mounted at 90 degrees
 
         //public static final double 
-        public static final double CAM_HEIGHT = 24;
+        public static final double CAM_HEIGHT = 13; // 13 inches off the ground
 
         public static final double PROCESSOR_HEIGHT = 47.875;
 

@@ -44,6 +44,7 @@ public class RobotContainer {
     private LimelightResults             limelight;
     private Supplier<Pose2d> m_robotPoseSupplier = ()-> m_swerveSubsystem.getPose();
     private RepeatCommand repeatCommand;
+    private DeadReckoningPIDCommand    m_DeadReckoningPIDCommand;
 
     // Declare handles for choosable autonomous Commands
    // private JustScoreLeftAuto           m_justScoreLeftAuto;
@@ -91,7 +92,7 @@ public class RobotContainer {
                                         m_swerveSubsystem,
                                         m_robotPoseSupplier);
 */
-  
+  m_DeadReckoningPIDCommand = new DeadReckoningPIDCommand(m_swerveSubsystem);
    // m_testVisionCmd = new TestVisionCmd(m_visionTestSubsystem);
    m_HolonomicTargetCommand = new HolonomicTargetCommand(m_swerveSubsystem, m_visionTestSubsystem);
     /*
@@ -210,6 +211,7 @@ public class RobotContainer {
         // Swerve park 
          ALT.and(m_xbox.x()).onTrue(m_parkCmd);
          m_xbox.a().whileTrue(m_HolonomicTargetCommand);
+         m_xbox.b().whileTrue(m_DeadReckoningPIDCommand);
          //m_xbox.a().onTrue(m_DriveToTargetCmd);
         
         // Note handling activities

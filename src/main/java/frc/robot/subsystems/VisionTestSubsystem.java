@@ -8,13 +8,13 @@ import java.util.HashMap;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.LimelightHelpers.LimelightResults;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 
 public class VisionTestSubsystem extends SubsystemBase{
     
-
+    private Integer errorCount = 0;
     private final SwerveSubsystem m_swerveSubsystem;
     public HashMap<String, Double> camData = new HashMap<String, Double>();
 
@@ -30,7 +30,7 @@ public class VisionTestSubsystem extends SubsystemBase{
     } 
     
     
-    public void getVisionData(){
+    public double[] getVisionData(){
 
 
          NetworkTable table = NetworkTableInstance.getDefault().getTable("limelight"); //set getTable() to limelight name NOT pipeline name
@@ -74,34 +74,48 @@ public class VisionTestSubsystem extends SubsystemBase{
         // get targetpose_cameraspace data
         // this is relative to the target
         // recieved values are in meters
-        double[] targetpose = table.getEntry("targetpose_cameraspace").getDoubleArray(new double[6]);
+        var tempVar = table.getEntry("targetpose_cameraspace");
+        double[] value = null;
+        //System.out.println(tempVar);
+        //table entries will never return null
+        if( tempVar == null){
+            ++errorCount;
+            System.out.println("Target Pose Error: " + errorCount + "  " + System.currentTimeMillis());}
+        else {
+            //double[] lengthTempVar = tempVar.getDoubleArray(new double[6]); 
+            //System.out.println("Array length: " + lengthTempVar.length);
 
-        double targetposeX = targetpose[0];
-        double targetposeY = targetpose[1];
-        double targetposeZ = targetpose[2];
+            double[] targetpose = tempVar.getDoubleArray(new double[6]);
 
-        double targetposeRoll = targetpose[3];
-        double targetposePitch = targetpose[4];
-        double targetposeYaw = targetpose[5];
-        // TODO: we should NEVER communicate through smart dashboard. It is for data visualization only imo - mica
-        camData.put("targetposeX", targetposeX);
-        camData.put("targetposeY", targetposeY);
-        camData.put("targetposeZ", targetposeZ);
+            double targetposeX = targetpose[0];
+            double targetposeY = targetpose[1];
+            double targetposeZ = targetpose[2];
 
-        camData.put("targetposeRoll", targetposeRoll);
-        camData.put("targetposePitch", targetposePitch);
-        camData.put("targetposeYaw", targetposeYaw);
+            double targetposeRoll = targetpose[3];
+            double targetposePitch = targetpose[4];
+            double targetposeYaw = targetpose[5];
+          // TODO: we should NEVER communicate through smart dashboard. It is for data visualization only imo - mica
+            camData.put("targetposeX", targetposeX);
+            camData.put("targetposeY", targetposeY);
+            camData.put("targetposeZ", targetposeZ);
 
-        SmartDashboard.putNumber("targetposeX", targetposeX);
-        SmartDashboard.putNumber("targetposeY", targetposeY);
-        SmartDashboard.putNumber("targetposeZ", targetposeZ);
+            camData.put("targetposeRoll", targetposeRoll);
+            camData.put("targetposePitch", targetposePitch);
+            camData.put("targetposeYaw", targetposeYaw);
 
-        SmartDashboard.putNumber("targetposeRoll", targetposeRoll);
-        SmartDashboard.putNumber("targetposePitch", targetposePitch);
-        SmartDashboard.putNumber("targetposeYaw", targetposeYaw);
+            SmartDashboard.putNumber("targetposeX", targetposeX);
+            SmartDashboard.putNumber("targetposeY", targetposeY);
+            SmartDashboard.putNumber("targetposeZ", targetposeZ);
+
+            SmartDashboard.putNumber("targetposeRoll", targetposeRoll);
+            SmartDashboard.putNumber("targetposePitch", targetposePitch);
+            SmartDashboard.putNumber("targetposeYaw", targetposeYaw);
 
         
-        SmartDashboard.putNumberArray("targetpose", targetpose );    
+            SmartDashboard.putNumberArray("targetpose", targetpose ); 
+            value = targetpose;
+        } 
+            return value;    
     }
 
     
@@ -113,25 +127,27 @@ public class VisionTestSubsystem extends SubsystemBase{
 
         //Yaw = camera.getAllUnreadResults().get(0);
         //SmartDashboard.putBoolean("limelight Has Targets", camera.getLatestResult().hasTargets());
-        getVisionData();
 
-        getCamAreaDist();
+        getCamTrigDist();
     }
 
 
 
-    public double getCamAreaDist(){
+    public double getCamTrigDist(){
 
-        double KP = .01165; //calculated based on testing num too small-increase value too big-decrease value
+        NetworkTable table = NetworkTableInstance.getDefault().getTable("limelight");
+        var Ty = table.getEntry("ty");
+        double targetOffsetAngle_Vertical = Ty.getDouble(0.0);
 
-        //calculate distance based on actual area and area % gotten by camera
-        
-        double distanceArea = Math.sqrt(Constants.VC.APRILTAG_AREA_IN/ (camData.get("Ta") * KP));
+        double angleToTargetRaidans = ( targetOffsetAngle_Vertical) * (3.14159 / 180.0);
 
+        var aprilTagHeightMeters = Units.inchesToMeters(Constants.VC.APRILTAG_HEIGHT);
+        var camHeight = Units.inchesToMeters(Constants.VC.CAM_HEIGHT);
+        double distanceToTarget = (aprilTagHeightMeters - camHeight) / Math.tan(angleToTargetRaidans);
 
-        camData.put("distanceArea", distanceArea);
-        SmartDashboard.putNumber("distArea", distanceArea);  
+        camData.put("distanceTarget", distanceToTarget);
+        SmartDashboard.putNumber("distTarget", distanceToTarget);  
 
-        return distanceArea; 
+        return distanceToTarget; 
     }
 }
