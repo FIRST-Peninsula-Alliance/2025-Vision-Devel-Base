@@ -15,6 +15,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.subsystems.SwerveSubsystem;
 import frc.robot.subsystems.VisionTestSubsystem;
 import java.lang.Math;
+import java.util.ArrayDeque;
 
 public class HolonomicTargetCommand extends Command {
 
@@ -35,7 +36,7 @@ public class HolonomicTargetCommand extends Command {
 
   double targetdist = 50;
 
-  boolean shouldSearch = true;
+  
   double[] targetData;
 
   class Target {
@@ -176,7 +177,7 @@ public class HolonomicTargetCommand extends Command {
   }
   */
 
-  @Override
+  /*@Override
   public void execute() {
 
     double rotSpeed = 0;
@@ -211,6 +212,45 @@ public class HolonomicTargetCommand extends Command {
 
     Translation2d go = new Translation2d();
     drivetrainSubsystem.drive(go, rotSpeed, true);
+  }*/
+
+  double[] previousTargetData = {};
+  double[] currentTargetData = {};
+  PIDController angleSolver = new PIDController(0.2, 0, 0.05);
+  double error = 0;
+  double lock = 0;
+  double progress = 0;
+  double difference = 0;
+  boolean shouldSearch = true;
+  
+
+  @Override
+  public void execute()
+  {
+    
+    if (shouldSearch) {
+      currentTargetData = limelightCamera.getVisionData();
+      if (currentTargetData.length == 6) {
+        shouldSearch = false;
+        error = Math.atan2(currentTargetData[0], currentTargetData[1]);
+        lock = drivetrainSubsystem.getYaw2d().getRadians();
+      }
+    } else {
+      progress = drivetrainSubsystem.getYaw2d().getRadians() - lock;
+    }
+    angleSolver.setSetpoint(0);
+    angleSolver.setTolerance(0.1);
+    difference = progress-error;
+    double rotate = angleSolver.calculate(difference);
+
+    previousTargetData = currentTargetData;
+
+    if (angleSolver.atSetpoint()) {
+      shouldSearch = true;
+      return;
+    }
+    Translation2d go = new Translation2d();
+    drivetrainSubsystem.drive(go, rotate, true);
   }
 
   @Override
