@@ -223,8 +223,42 @@ public class HolonomicTargetCommand extends Command {
   double difference = 0;
   boolean shouldSearch = true;
   
+@Override
+public void execute()
+{
+  if (shouldSearch) {
+    currentTargetData = limelightCamera.getVisionData();
+    if (currentTargetData.length == 6) {
+      shouldSearch = false;
+      error = Math.atan2(currentTargetData[0], currentTargetData[1]);
+      // Calculate absolute target angle when you first see it
+      targetAngle = drivetrainSubsystem.getYaw2d().getRadians() + error;
+    }
+  }
+  
+  if (!shouldSearch) {
+    // Calculate current error to target
+    difference = targetAngle - drivetrainSubsystem.getYaw2d().getRadians();
+    
+    // Handle angle wrapping (if your PID doesn't do this already)
+    while (difference > Math.PI) difference -= 2 * Math.PI;
+    while (difference < -Math.PI) difference += 2 * Math.PI;
+    
+    angleSolver.setSetpoint(0);
+    angleSolver.setTolerance(0.1);
+    double rotate = angleSolver.calculate(difference);
 
-  @Override
+    if (angleSolver.atSetpoint()) {
+      shouldSearch = true;
+      drivetrainSubsystem.drive(new Translation2d(), 0, true);
+      return;
+    }
+    drivetrainSubsystem.drive(new Translation2d(), rotate, true);
+  }
+  
+  previousTargetData = currentTargetData;
+}
+  /*@Override
   public void execute()
   {
     
@@ -251,7 +285,7 @@ public class HolonomicTargetCommand extends Command {
     }
     Translation2d go = new Translation2d();
     drivetrainSubsystem.drive(go, rotate, true);
-  }
+  }*/
 
   @Override
   public boolean isFinished() {
